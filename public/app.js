@@ -20,7 +20,8 @@ const $toast = document.getElementById('toast');
 
 /* ---------------- api ---------------- */
 
-async function api(path, opts) {
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({}, opts.headers, me ? { 'x-player-id': me.id } : {});
   const res = await fetch(path, opts);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -72,6 +73,11 @@ function toast(msg) {
 }
 
 function round(id) { return S.state.rounds.find(r => r.id === id); }
+function amAdmin() {
+  if (!me) return false;
+  const p = S.state.players.find(p => p.id === me.id);
+  return !!(p && p.isAdmin);
+}
 function course(r) { return S.courses[r.course]; }
 function playerName(id) {
   const p = S.state.players.find(p => p.id === id);
@@ -160,6 +166,8 @@ function render() {
   $nav.hidden = !joined;
   $whoami.hidden = !joined;
   if (joined) $whoami.textContent = me.name;
+  $nav.querySelector('[data-view="setup"]').hidden = !amAdmin();
+  if (currentView === 'setup' && !amAdmin()) currentView = 'score';
   $nav.querySelectorAll('button').forEach(b =>
     b.classList.toggle('active', b.dataset.view === currentView)
   );
@@ -197,8 +205,9 @@ function renderJoin() {
       const { player } = await post('/api/players', { name });
       me = player;
       localStorage.setItem('dd_me', JSON.stringify(me));
+      await fetchState();
       setView('score');
-      toast(`Welcome, ${player.name}!`);
+      toast(`Welcome, ${player.name}!${player.isAdmin ? ' You’re the organiser 👑' : ''}`);
     } catch (e) { toast(e.message); }
   };
   document.getElementById('join-btn').onclick = () => join(document.getElementById('join-name').value);
@@ -206,12 +215,14 @@ function renderJoin() {
     if (e.key === 'Enter') join(e.target.value);
   });
   $view.querySelectorAll('[data-pid]').forEach(b => {
-    b.onclick = () => {
+    b.onclick = async () => {
       const p = S.state.players.find(p => p.id === b.dataset.pid);
-      me = p;
+      const { player } = await post('/api/players', { name: p.name });
+      me = player;
       localStorage.setItem('dd_me', JSON.stringify(me));
+      await fetchState();
       setView('score');
-      toast(`Welcome back, ${p.name}!`);
+      toast(`Welcome back, ${player.name}!`);
     };
   });
 }
@@ -504,7 +515,7 @@ function renderStats() {
     return;
   }
 
-  /* Mystery prize hole */
+  /* Mystery prize hole — hidden from players until the round is done */
   if (r.mysteryHole) {
     const h = holes[r.mysteryHole - 1];
     const entries = lines
@@ -519,12 +530,19 @@ function renderStats() {
         ? `<div class="winner">${esc(best.map(b => b.name).join(' & '))}</div>
            <div class="sub">${best[0].s} strokes (${fmtToPar(best[0].s - h.par)}) ${best.length > 1 ? '— tied, split the prize!' : '— take a bow'}</div>`
         : `<div class="sub">Nobody has played hole ${h.hole} yet…</div>`}
+      ${!r.mysteryVisible ? `<div class="sub" style="margin-top:6px">🤫 Only you can see this — players see it once the round is done</div>` : ''}
+    </div>`;
+  } else if (r.mysteryHoleSet) {
+    html += `<div class="card mystery">
+      <div class="prize">🔒</div>
+      <h2 style="text-align:center">Mystery prize hole</h2>
+      <div class="sub">One of these 18 holes is worth a prize… revealed when everyone's finished the round. Play them all like it's this one.</div>
     </div>`;
   } else {
     html += `<div class="card mystery">
       <div class="prize">🎁</div>
       <h2 style="text-align:center">Mystery prize hole</h2>
-      <div class="sub">Not set for this round — pick one in Setup ⚙️</div>
+      <div class="sub">${amAdmin() ? 'Not set for this round — pick one in Setup ⚙️' : 'Not set for this round (yet…)'}</div>
     </div>`;
   }
 
@@ -654,6 +672,11 @@ function renderStats() {
 
 function renderSetup() {
   setupDirty = false;
+  if (!amAdmin()) {
+    $view.innerHTML = `<div class="card"><h2>Setup</h2>
+      <p class="hint">Only the trip organiser can change the setup.</p></div>`;
+    return;
+  }
   const players = S.state.players;
   $view.innerHTML = `
     ${S.state.rounds.map(r => setupRoundCard(r)).join('')}
@@ -666,7 +689,7 @@ function renderSetup() {
     </div>
     <div class="card">
       <h2>Data</h2>
-      <a class="btn secondary" href="/api/export" style="text-decoration:none">Download backup (JSON)</a>
+      <a class="btn secondary" href="/api/export?pid=${me.id}" style="text-decoration:none">Download backup (JSON)</a>
     </div>
   `;
 
@@ -706,6 +729,15 @@ function setupRoundCard(r) {
         </select>
         <button class="btn secondary small" data-random-mystery>🎲</button>
       </div>
+      ${r.mysteryHoleSet ? `
+      <p class="hint" style="margin-top:8px">
+        ${r.mysteryVisible
+          ? 'Currently visible to all players.'
+          : 'Hidden from players until everyone finishes the round — or reveal it early:'}
+      </p>
+      <button class="btn secondary small" data-toggle-reveal style="margin-top:6px">
+        ${r.mysteryVisible ? 'Hide again 🤫' : 'Reveal now 📣'}
+      </button>` : ''}
     </div>
     ${r.mode === 'ambrose' ? `
     <div class="field">
@@ -749,6 +781,16 @@ function bindSetupRound(r) {
     };
   });
   box.querySelector('[data-mystery]').onchange = markDirty;
+  const revealBtn = box.querySelector('[data-toggle-reveal]');
+  if (revealBtn) {
+    revealBtn.onclick = async () => {
+      await post('/api/rounds/' + r.id, { mysteryRevealed: !r.mysteryRevealed });
+      setupDirty = false;
+      await fetchState();
+      render();
+      toast(r.mysteryRevealed ? 'Mystery hole hidden again' : 'Mystery hole revealed to everyone 📣');
+    };
+  }
   box.querySelector('[data-random-mystery]').onclick = () => {
     const sel = box.querySelector('[data-mystery]');
     sel.value = String(1 + Math.floor(Math.random() * 18));

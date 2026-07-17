@@ -56,12 +56,64 @@ function touch() {
 }
 load();
 
+function requester(req) {
+  const pid = req.get('x-player-id') || req.query.pid;
+  return state.players.find(p => p.id === pid) || null;
+}
+function hasAdmin() {
+  return state.players.some(p => p.isAdmin);
+}
+function requireAdmin(req, res) {
+  if (!hasAdmin()) return true; // nobody has joined yet — allow bootstrap
+  const p = requester(req);
+  if (p && p.isAdmin) return true;
+  res.status(403).json({ error: 'Only the trip organiser can do that' });
+  return false;
+}
+
+/* Hole coverage per scoring entity (team = union of member scores) */
+function roundEntities(r) {
+  if (r.mode === 'ambrose' && (r.teams || []).length) {
+    return r.teams.map(t => t.playerIds);
+  }
+  return state.players.map(p => [p.id]);
+}
+/* Round counts as finished when everyone who started has all 18 holes in */
+function roundComplete(r) {
+  const rs = state.scores[r.id] || {};
+  let anyStarted = false;
+  for (const pids of roundEntities(r)) {
+    const holes = new Set();
+    for (const pid of pids) {
+      for (const h of Object.keys(rs[pid] || {})) holes.add(h);
+    }
+    if (holes.size > 0) {
+      anyStarted = true;
+      if (holes.size < 18) return false;
+    }
+  }
+  return anyStarted;
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/state', (req, res) => {
-  res.json({ state, courses: COURSES });
+  const p = requester(req);
+  const isAdmin = !!(p && p.isAdmin);
+  // hide the mystery hole from non-organisers until the round is done
+  const rounds = state.rounds.map(r => {
+    const revealed = !!r.mysteryRevealed || roundComplete(r);
+    const out = { ...r, mysteryHoleSet: r.mysteryHole != null, mysteryVisible: revealed };
+    if (!isAdmin && !revealed) out.mysteryHole = null;
+    return out;
+  });
+  res.json({
+    state: { ...state, rounds },
+    courses: COURSES,
+    you: p ? { id: p.id, isAdmin } : null
+  });
 });
 
 app.post('/api/players', (req, res) => {
@@ -73,12 +125,15 @@ app.post('/api/players', (req, res) => {
   if (!player) {
     player = { id: crypto.randomUUID().slice(0, 8), name };
     state.players.push(player);
-    touch();
   }
+  // first person in becomes the trip organiser
+  if (!hasAdmin()) player.isAdmin = true;
+  touch();
   res.json({ player });
 });
 
 app.delete('/api/players/:id', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const id = req.params.id;
   state.players = state.players.filter(p => p.id !== id);
   for (const roundId of Object.keys(state.scores)) {
@@ -117,9 +172,10 @@ app.post('/api/scores', (req, res) => {
 });
 
 app.post('/api/rounds/:id', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const round = state.rounds.find(r => r.id === req.params.id);
   if (!round) return res.status(404).json({ error: 'Round not found' });
-  const { mode, teams, mysteryHole, name } = req.body;
+  const { mode, teams, mysteryHole, mysteryRevealed, name } = req.body;
   if (mode === 'stroke' || mode === 'ambrose') round.mode = mode;
   if (Array.isArray(teams)) {
     round.teams = teams
@@ -136,18 +192,21 @@ app.post('/api/rounds/:id', (req, res) => {
     const mh = mysteryHole === null ? null : Number(mysteryHole);
     round.mysteryHole = mh >= 1 && mh <= 18 ? mh : null;
   }
+  if (mysteryRevealed !== undefined) round.mysteryRevealed = !!mysteryRevealed;
   if (typeof name === 'string' && name.trim()) round.name = name.trim().slice(0, 40);
   touch();
   res.json({ round });
 });
 
 app.post('/api/rounds/:id/clear-scores', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   delete state.scores[req.params.id];
   touch();
   res.json({ ok: true });
 });
 
 app.get('/api/export', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   res.setHeader('Content-Disposition', 'attachment; filename="divot-diggers-data.json"');
   res.json(state);
 });

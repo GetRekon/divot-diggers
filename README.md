@@ -5,10 +5,12 @@ Live golf scoring and leaderboard for the Divot Diggers trip — Magenta Shores 
 ## What it does
 
 - **Join with just a name** — each player opens the site on their phone, types their name once, and starts scoring. Their identity is remembered on their device.
+- **Organiser role** — the **first person to join becomes the trip organiser**: only they see the Setup tab, and setup changes are enforced server-side. (Join before you share the URL!)
 - **Score entry** — tap a hole, tap your score (quick buttons around par, or +/−), save & it auto-advances to the next hole.
 - **Live leaderboard** — updates within ~4 seconds every time anyone posts a score. Per-round tabs plus a "Whole Trip" combined standing.
 - **Ambrose mode** (Round 1 default) — build teams in Setup; the team's score on each hole is the **best score entered** by any member. Players who pick up just leave the hole blank.
 - **Analytics** — mystery prize hole winner 🎁, scoring breakdown bars (eagles → doubles), hardest/easiest holes, hot streaks, blow-ups, most consistent player, back-nine surges.
+- **Hidden mystery hole** — players see only a 🔒 "one of these holes is worth a prize" teaser; the hole and winner reveal automatically once everyone has finished the round (the organiser can also reveal early from Setup). The hole number is stripped server-side, so it can't be peeked at.
 - **Setup page** — switch each round between stroke/Ambrose, build teams, set (or 🎲 roll) the mystery prize hole, clear scores, remove players, download a JSON backup.
 
 ## Run locally
