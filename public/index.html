@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#0b3d2e">
+<title>Divot Diggers ⛳</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="header">
+  <div class="wordmark">
+    <span class="flag">⛳</span>
+    <div>
+      <h1>Divot Diggers</h1>
+      <p id="subtitle">Golf Trip Live Scoring</p>
+    </div>
+  </div>
+  <button id="whoami" class="whoami" hidden></button>
+</header>
+
+<main id="view"></main>
+
+<nav id="nav" hidden>
+  <button data-view="score"><span>📝</span>Score</button>
+  <button data-view="leaderboard"><span>🏆</span>Leaders</button>
+  <button data-view="stats"><span>📊</span>Stats</button>
+  <button data-view="setup"><span>⚙️</span>Setup</button>
+</nav>
+
+<div id="modal-backdrop" hidden>
+  <div id="modal"></div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

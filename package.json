@@ -1,0 +1,15 @@
+{
+  "name": "divot-diggers",
+  "version": "1.0.0",
+  "description": "Live golf scoring and leaderboard for the Divot Diggers trip",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
