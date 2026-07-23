@@ -268,11 +268,19 @@ function renderScore() {
       </div>
       <span class="mode-tag">${r.mode === 'ambrose' ? '🤝 Ambrose' : '🏌️ Stroke'}</span>
     </div>
-    ${r.mode === 'ambrose' ? `<div class="ambrose-note">
-      <strong>Ambrose round:</strong> the team takes the <strong>best score entered</strong> on each hole.
-      ${myTeam ? `You're on <strong>${esc(myTeam.name)}</strong>.` : 'No team yet — sort teams in Setup.'}
-      Picked up your ball? Just leave the hole blank.
-    </div>` : ''}
+    ${r.mode === 'ambrose' ? (() => {
+      const partners = myTeam ? myTeam.playerIds.filter(id => id !== me.id).map(playerName) : [];
+      const unit = myTeam && myTeam.playerIds.length === 2 ? 'pair' : 'team';
+      return `<div class="ambrose-note">
+        <strong>🤝 Playing in ${unit}s today:</strong> your ${unit} scores its <strong>best score entered</strong> on each hole — one entry between you is enough.
+        ${myTeam
+          ? (partners.length
+              ? `You're with <strong>${esc(partners.join(' & '))}</strong> (${esc(myTeam.name)}).`
+              : `You're on <strong>${esc(myTeam.name)}</strong>.`)
+          : `${unit === 'pair' ? 'Pairs' : 'Teams'} get sorted in Setup before tee-off.`}
+        Picked up your ball? Leave the hole blank — your ${unit}mate's score carries you.
+      </div>`;
+    })() : ''}
     <div class="score-summary">
       <div><div class="v">${line.thru}</div><div class="l">Thru</div></div>
       <div><div class="v">${line.strokes || '–'}</div><div class="l">Strokes</div></div>
